@@ -14,7 +14,10 @@ Ce projet a été réalisé en groupe de cinq étudoants avec une répartition d
 - Anna-Eve :
 
 ## Description des données
+<p align="justify">
 Les données que nous traitons dans ce sujet sont des images représentant des sous-parties d'un échantillon de roche broyée en grain. Chaque grain correspond à un minéral.
+</p>
+
 ## Prétraitements testés
 Pour cette partie, l'objectif est d'améliorer la qualité des images pour faciliter la segmentation.\
 Dans un premier temps, les images sont chargées automatiquement à l'aide de la fonction **load_and_resize**. Elle permet aussi de pouvoir les rédimensionner si besoin pour un traitement cohérent.\
