@@ -57,7 +57,7 @@ def traitement(path):
         # show_image("Blurred", blurred)
         combined = np.hstack((img, enhanced))
         show_image("original vs clahe", combined)
-        cv2.imwrite(f"results/{name}_clahe.png", combined)
+        cv2.imwrite(f"results/{name}", combined)
 
 
 

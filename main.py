@@ -3,7 +3,6 @@ import cv2
 import numpy as np
 import glob 
 import os
-import sys
 from pathlib import Path
 from preprocessing import traitement
 
