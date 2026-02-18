@@ -49,15 +49,15 @@ def traitement(path):
     images = load_and_resize(path)
     for name, img in images.items():
         enhanced, blurred = preprocess(img)
-        print(f"\nHistogramme pour {name}")
-        show_histogram(img,"avant preprocess")
-        show_histogram(enhanced,"après clahe")
+        # print(f"\nHistogramme pour {name}")
+        # show_histogram(img,"avant preprocess")
+        # show_histogram(enhanced,"après clahe")
         # show_image("Original", img)
         # show_image("CLAHE", enhanced)
         # show_image("Blurred", blurred)
         combined = np.hstack((img, enhanced))
-        show_image("original vs clahe", combined)
-        cv2.imwrite(f"results/{name}", combined)
+        # show_image("original vs clahe", combined)
+        cv2.imwrite(f"results/preprocessing/{name}", enhanced)
 
 
 
