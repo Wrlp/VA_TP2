@@ -45,18 +45,20 @@ def show_histogram(img, title="hist"):
     plt.xlim([0,256])
     plt.show()
 
-def traitement(path):
+def traitement(path, visualise: bool = False):
     images = load_and_resize(path)
     for name, img in images.items():
         enhanced, blurred = preprocess(img)
-        # print(f"\nHistogramme pour {name}")
-        # show_histogram(img,"avant preprocess")
-        # show_histogram(enhanced,"après clahe")
-        # show_image("Original", img)
-        # show_image("CLAHE", enhanced)
-        # show_image("Blurred", blurred)
-        combined = np.hstack((img, enhanced))
-        # show_image("original vs clahe", combined)
+        if visualise:
+            print(f"\nHistogramme pour {name}")
+            show_histogram(img,"avant preprocess")
+            show_histogram(enhanced,"après clahe")
+            show_image("Original", img)
+            show_image("CLAHE", enhanced)
+            show_image("Blurred", blurred)
+            combined = np.hstack((img, enhanced))
+            show_image("original vs clahe", combined)
+            
         cv2.imwrite(f"results/preprocessing/{name}", enhanced)
 
 
