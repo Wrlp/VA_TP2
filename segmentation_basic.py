@@ -1,82 +1,106 @@
 import cv2
 import numpy as np
-import glob 
 import os
+import matplotlib.pyplot as plt
 
-# TODO 
-"""
-Membre 2 — Segmentation 1 : Méthodes simples (seuillage + morphologie)
-🎯 Objectif
-Implémenter des méthodes classiques et simples.
+from preprocessing import load_and_resize 
 
-📌 Tâches
-Conversion en niveaux de gris
-Otsu
-Seuillage adaptatif
-Morphologie :
-Opening / Closing
-Érosion / Dilatation
-Suppression des petits objets
-Visualisation des grains détectés (contours)
+def show_changes(list_of_images: list[np.ndarray], color: bool = False) -> None:
+    """Display a series of images in a grid layout for comparison.
+    This function creates a horizontal grid of subplots to visualize multiple
+    images side by side.
+    
+    Args:
+        list_of_images (list): A list of images (numpy arrays) to be displayed.
+        color (bool, optional): If True, converts BGR images to RGB before display.
+            If False, displays images in grayscale. Defaults to False.
+    
+    Returns:
+        None
+    """
+    
+    plt.figure(figsize=(15, 5))
+    for i, img in enumerate(list_of_images):
+        plt.subplot(1, len(list_of_images), i + 1)
+        if color:
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            plt.imshow(img)
+        else:
+            plt.imshow(img, cmap='gray')
+        plt.title(f"Step {i+1}")
+        plt.axis('off')
+    plt.show()
 
-📊 Dans le rapport
-Quand ça marche ?
-Quand ça échoue ?
-Sensibilité au prétraitement ?
-"""
-# path input : results/preprocessing/
-# path output : results/seg_basic/
+def morphological_operations(binary: np.ndarray) -> np.ndarray:
+    """
+    Applies a series of morphological operations to a binary image.
+    The operations help remove noise, fill small holes, and separate touching objects.
+    
+    Args:
+        binary: A binary image (numpy array with values 0 or 255) to be processed.
+    
+    Returns:
+        A binary image (numpy array) after applying the morphological operations.
+    """
+    kernel = np.ones((5,5), np.uint8)
+    step = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, (7,7), iterations=10)
+    
+    step = cv2.morphologyEx(step, cv2.MORPH_OPEN, kernel, iterations=1)
+    step = cv2.morphologyEx(step, cv2.MORPH_CLOSE, kernel, iterations=1)
+    
+    step = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel, iterations=1)
+    step = cv2.morphologyEx(step, cv2.MORPH_CLOSE, kernel, iterations=1)
+    
+    step = cv2.morphologyEx(step, cv2.MORPH_ERODE, kernel, iterations=3)
+    return step
 
-
-def load_and_resize(path, size=(600, 600)):
-    images = {}
-    for file in glob.glob(os.path.join(path, "*.png")):
-        img = cv2.imread(file)
-        img = cv2.resize(img, size)
-        name = os.path.basename(file)  
-        images[name] = img
-
-    return images
-
-def show_changes(title, original, processed):
-    combined = np.hstack((original, processed))
-    cv2.imshow(title, combined)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
-
-def segmentation_basic(path):
-    # TODO
+def segmentation_basic(path: str, save: bool = False, visualise: bool = False, out: str = "results/seg_basic/") -> dict[str, list[np.ndarray]]:
+    """
+    Perform basic image segmentation using Otsu's thresholding and morphological operations.
+    Detects and extracts objects from images by applying grayscale conversion, binary
+    thresholding, morphological operations, and contour detection.
+    
+    Args:
+        path (str): Directory path containing images to segment.
+        save (bool, optional): Save segmented results to disk. Defaults to False.
+        visualise (bool, optional): Display segmentation results. Defaults to False.
+        out (str, optional): Output directory for saving images. Defaults to "results/seg_basic/".
+    
+    Returns:
+        dict[str, list[np.ndarray]]: Image filenames mapped to detected contours
+            (area > 200 pixels).
+    """
+    
+    objects_in_images = {}
     images = load_and_resize(path)
     for name, img in images.items():
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        kernel = np.ones((3,3), np.uint8)
         
-        closing = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel, iterations=1)
-        opening = cv2.morphologyEx(closing, cv2.MORPH_OPEN, kernel, iterations=5)
-        contours, _ = cv2.findContours(opening, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        step = morphological_operations(binary)
         
-        contours_filled = cv2.findContours(binary, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)[0]
-        black_img = np.zeros_like(opening)
-        for cnt in contours_filled:
-            cv2.drawContours(black_img, [cnt], 0, 255, -1)
-            
+        contours, _ = cv2.findContours(step, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         
-        img_contours = np.zeros_like(binary)
-        cv2.drawContours(img_contours, contours, -1, (255,255,255), 1)
-
-        show_changes("Seuillage + Morphologie", black_img, img_contours)
-
+        # Filter small contours
+        objects = [cnt for cnt in contours if cv2.contourArea(cnt) > 200]
+        objects_in_images[name] = objects
+        
+        # Draw contours and bounding boxes
         result = img.copy()
-        for cnt in contours:
-            area = cv2.contourArea(cnt)
-            if area > 200:  # Supprimer les petits objets
-                x,y,w,h = cv2.boundingRect(cnt)
-                cv2.rectangle(result,(x,y),(x+w,y+h),(0,0,255),1)
-        show_changes("Segmentation basique", img, result)
-        output_path = os.path.join("results/seg_basic/", name)
-        cv2.imwrite(output_path, result)
+        for obj in objects:
+            x,y,w,h = cv2.boundingRect(obj)
+            cv2.rectangle(result,(x,y),(x+w,y+h),(255,0,0),1)
+        
+        # cv2.drawContours(result, contours, -1, (255,0,255), 1)
+        if save:
+            output_path = os.path.join(out, name)
+            cv2.imwrite(output_path, result)
+        if visualise:
+            show_changes([img, result], color=True)
+            
+    return objects_in_images
 
 if __name__ == "__main__":
     path = "results/preprocessing/"
-    segmentation_basic(path)
+    objects_in_images = segmentation_basic(path, save=True, visualise=False)
+    print(objects_in_images.keys())

@@ -11,7 +11,8 @@ def main():
     path = "img/"
     traitement(path)
     seg_path = "results/preprocessing/"
-    segmentation_basic(seg_path)
+    objects_in_images = segmentation_basic(seg_path) # Dict avec key = nom img et value = liste de contours (peux drawContours à partir de ça)
+    
 
 if __name__ == "__main__":
     main()
