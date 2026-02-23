@@ -8,10 +8,16 @@ from preprocessing import load_and_resize
 
 
 def quickshift(image: np.ndarray, 
-               kernel_size: float = 3.0,
+               kernel_size: float = 5.0,
                max_dist: float = 10.0,
-               ratio: float = 1.0) -> np.ndarray:
-    """Segmentation Quickshift optimisée avec recherche locale."""
+               ratio: float = 0.5) -> np.ndarray:
+    """Segmentation Quickshift optimisée avec recherche locale.
+    
+    Paramètres pour contrôler la sensibilité :
+    - kernel_size : plus élevé = moins sensible aux variations (moins de segments)
+    - max_dist : distance max de recherche spatiale
+    - ratio : balance spatial/couleur (plus petit = privilégie la couleur)
+    """
     # Conversion en espace Lab
     if len(image.shape) == 3 and image.shape[2] == 3:
         if image.max() > 1.0:
@@ -22,7 +28,7 @@ def quickshift(image: np.ndarray,
     
     h, w = image_lab.shape[:2]
     
-    # Calcul de la densité locale et des parents de manière optimisée
+    # Calcul de la densité locale et des parents
     densities, parents = compute_density_and_parents_optimized(
         image_lab, h, w, kernel_size, max_dist, ratio
     )
@@ -79,7 +85,7 @@ def compute_density_and_parents_optimized(image_lab, h, w, kernel_size, max_dist
             
             densities[y, x] = density
     
-    # Trouver les parents (voisins avec densité plus élevée)
+    # Trouver les parents
     print("Recherche des parents...")
     for y in tqdm(range(h), desc="Parents"):
         for x in range(w):
@@ -139,11 +145,10 @@ def create_segments(parents: np.ndarray, h: int, w: int) -> np.ndarray:
             # Le mode est le dernier pixel atteint
             mode = cy * w + cx
             
-            # Assigner tous les pixels du chemin au même segment
+            # Créer les segment
             for py, px in path:
                 segments[py, px] = mode
     
-    # Réindexer les segments pour avoir des indices consécutifs
     unique_segments = np.unique(segments)
     segment_map = {old: new for new, old in enumerate(unique_segments)}
     
@@ -160,7 +165,7 @@ def segmentation_quickshift(path: str, save: bool = False, visualise: bool = Fal
     images = load_and_resize(path)
     
     if not images:
-        print("Aucune image trouvée")
+        print("Aucune image trouvée!")
         return objects_in_images
     
     print(f"\n{'='*60}")
@@ -171,7 +176,11 @@ def segmentation_quickshift(path: str, save: bool = False, visualise: bool = Fal
         print(f"\n[{idx}/{len(images)}] Image: {name}")
         print("-" * 60)
         
-        segments = quickshift(img, kernel_size=10.0, max_dist=10.0, ratio=1.0)
+        # Paramètres ajustables :
+        # kernel_size : augmentation = moins de segments (moins sensible)
+        # max_dist : augmentation = segments plus gros mais plus lent
+        # ratio : diminution = privilégie couleur sur position
+        segments = quickshift(img, kernel_size=7.0, max_dist=10.0, ratio=0.3)
         
         unique_segments = np.unique(segments)
         print(f"Segments créés: {len(unique_segments)}")
@@ -200,13 +209,19 @@ def segmentation_quickshift(path: str, save: bool = False, visualise: bool = Fal
             print(f"Sauvegardé: {output_path}")
     
     print(f"\n{'='*60}")
-    print(f"Traitement terminé")
+    print(f"Traitement terminé!")
     print(f"{'='*60}\n")
     
     return objects_in_images
 
 
 if __name__ == "__main__":
-    path = "results/preprocessing/"
-    objects_in_images = segmentation_quickshift(path, save=True, visualise=False)
-    print(objects_in_images.keys())
+    
+    path = input("Chemin des images [défaut: results/preprocessing/]: ").strip() or "results/preprocessing/"
+    
+    if not os.path.exists(path):
+        print(f"\nDossier introuvable: {path}")
+    else:
+        objects_in_images = segmentation_quickshift(path, save=True, visualise=False)
+        print(f"\n{len(objects_in_images)} images traitées")
+        print(f"Résultats sauvegardés dans: results/seg_quickshift/")
