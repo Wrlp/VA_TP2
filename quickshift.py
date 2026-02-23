@@ -160,7 +160,7 @@ def segmentation_quickshift(path: str, save: bool = False, visualise: bool = Fal
     images = load_and_resize(path)
     
     if not images:
-        print("Aucune image trouvée!")
+        print("Aucune image trouvée")
         return objects_in_images
     
     print(f"\n{'='*60}")
@@ -171,10 +171,10 @@ def segmentation_quickshift(path: str, save: bool = False, visualise: bool = Fal
         print(f"\n[{idx}/{len(images)}] Image: {name}")
         print("-" * 60)
         
-        segments = quickshift(img, kernel_size=3.0, max_dist=10.0, ratio=1.0)
+        segments = quickshift(img, kernel_size=10.0, max_dist=10.0, ratio=1.0)
         
         unique_segments = np.unique(segments)
-        print(f"✓ Segments créés: {len(unique_segments)}")
+        print(f"Segments créés: {len(unique_segments)}")
         
         contours_list = []
         result = img.copy()
@@ -190,17 +190,17 @@ def segmentation_quickshift(path: str, save: bool = False, visualise: bool = Fal
                     x, y, w, h = cv2.boundingRect(cnt)
                     cv2.rectangle(result, (x, y), (x+w, y+h), (255, 0, 0), 1)
         
-        print(f"✓ Objets détectés: {len(contours_list)}")
+        print(f"Objets détectés: {len(contours_list)}")
         objects_in_images[name] = contours_list
         
         if save:
             os.makedirs(out, exist_ok=True)
             output_path = os.path.join(out, name)
             cv2.imwrite(output_path, result)
-            print(f"✓ Sauvegardé: {output_path}")
+            print(f"Sauvegardé: {output_path}")
     
     print(f"\n{'='*60}")
-    print(f"✓ Traitement terminé!")
+    print(f"Traitement terminé")
     print(f"{'='*60}\n")
     
     return objects_in_images
