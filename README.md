@@ -10,7 +10,7 @@ Ce projet a été réalisé en groupe de cinq étudoants avec une répartition d
 - Laure : Analyse des données et prétraitement global
 - Clément : Segmentation par opérations morphologiques et seuillage Otsu
 - Flavien : Segmentation par quickshift
-- Ewan :
+- Ewan : Extraction des caractéristiques et création du DataFrame final
 - Anna-Eve : Segmentation par watershed
 
 ## Description des données
@@ -68,9 +68,40 @@ Cependant, l'implémentation présente des limitations majeures dans le contexte
 En comparant nos résultats avec ceux présentés dans la documentation officielle de scikit-image (https://scikit-image.org/docs/0.12.x/auto_examples/segmentation/plot_segmentations.html?highlight=segmentation), on constate que ce comportement est en réalité typique de l'algorithme Quickshift. Les exemples de la documentation montrent que la méthode est particulièrement adaptée pour la segmentation d'images plus complexes où l'on cherche à identifier de nombreuses régions texturées distinctes, mais qu'elle produit systématiquement un nombre très élevé de segments, même sur des zones relativement homogènes.
 Malgré les nombreux ajustements tentés sur les paramètres (augmentation du kernel_size, modification du ratio, variation du max_dist), il n'a pas été possible d'obtenir une segmentation satisfaisante pour notre cas d'usage. L'algorithme Quickshift, bien que puissant dans son principe, ne semble donc pas adapté à notre problématique où l'on recherche des objets individuels bien délimités plutôt qu'une partition fine et texturée de l'image.
 
+### Extraction des caractéristiques et DataFrame final
+Pour cette partie, l'objectif est d'extraire des données quantitatives pour chaque grain segmenté afin de permettre une analyse plus poussée des minéraux présents dans l'échantillon.\
+Dans un premier temps, la fonction **extract_features** parcourt chaque grain isolé identifié par les étapes de segmentation précédentes. Pour chaque grain, un masque binaire spécifique est créé à partir de son contour, ce qui permet d'isoler précisément les pixels appartenant à ce minéral.\
+Ensuite, nous calculons les valeurs moyennes des canaux Bleu (B), Vert (G) et Rouge (R) pour l'ensemble des pixels couverts par le masque. Ces caractéristiques colorimétriques sont essentielles pour identifier la nature des minéraux, chaque type de roche possédant une signature spectrale propre.\
+Toutes ces données sont stockées de manière structurée dans une liste de dictionnaires, incluant le nom de l'image source, un identifiant unique pour le grain (Grain_ID) et les trois moyennes de couleur calculées. Ce format permet une manipulation aisée et une conversion rapide vers un DataFrame.\
+Le résultat final est exporté dans un fichier CSV (**features.csv**), regroupant l'ensemble des mesures effectuées sur toutes les images traitées. Cet export facilite l'analyse statistique globale et la validation des résultats par rapport aux données de référence.\
+Pour assurer la traçabilité et faciliter le débogage, la fonction **visualize_grains** génère des images de contrôle où chaque grain est entouré de son contour avec son identifiant affiché à son centre de masse. Cette étape de visualisation est cruciale pour valider que les caractéristiques extraites correspondent bien aux bons objets et pour identifier d'éventuels cas d'erreurs (grains mal segmentés ou fusionnés).
+
+L'impact de la qualité de la segmentation est direct sur la précision de l'extraction des caractéristiques. Une sous-segmentation (grains fusionnés) entraîne des moyennes de couleur biaisées par le mélange de plusieurs minéraux, tandis qu'une sur-segmentation fragmente les données d'un seul grain en plusieurs entrées, faussant ainsi les statistiques de taille et de répartition. La validation visuelle par ID permet de confirmer que les grains d'intérêt sont correctement capturés et caractérisés avant l'analyse finale.
+
 ## Analyse critique
+L'analyse comparative des trois méthodes de segmentation révèle des différences significatives tant sur le plan quantitatif que qualitatif. L'exécution complète sur l'ensemble du jeu de données (6 images) pour les méthodes basique et Watershed, ainsi que le test partiel sur Quickshift, nous permettent de tirer les conclusions suivantes :
+
+### Comparaison quantitative
+En prenant pour référence l'image **Echantillion-2Mod2_301.png**, nous observons une disparité majeure dans le nombre de grains détectés :
+- **Segmentation Basique** : 18 grains détectés.
+- **Segmentation Watershed** : 17 grains détectés.
+- **Segmentation Quickshift** : 341 grains détectés.
+
+Sur l'ensemble des 6 images, la méthode basique totalise 230 détections (moyenne de ~25,5 par image) contre 202 pour le Watershed (moyenne de ~22,4). Cette différence s'explique par la tendance du Watershed à être plus sélectif via son filtrage de surface et ses paramètres de distance minimale, évitant certaines fausses détections au prix d'une légère sous-segmentation des grains les moins contrastés.
+
+### Analyse des performances et limites
+-2. **Efficacité temporelle** : Les méthodes **Basique** et **Watershed** sont extrêmement rapides et adaptées à un traitement par lot. À l'inverse, **Quickshift** s'est avéré excessivement lent, nécessitant plusieurs minutes par image. Cette complexité algorithmique le rend inexploitable pour des applications en temps réel ou sur de grands volumes de données avec notre matériel.
+
+-1. **Qualité de segmentation (Sur-segmentation vs Sous-segmentation)** :
+   - La **méthode basique** souffre principalement de sous-segmentation (grains collés non séparés) et d'une perte de précision sur les contours due aux érosions successives.
+   - Le **Watershed** offre le meilleur équilibre pour l'isolation des grains individuels grâce à la transformée de distance, bien qu'il reste sensible aux textures internes des minéraux qui génèrent parfois des marqueurs parasites.
+   - Le **Quickshift** présente une sur-segmentation massive et incontrôlable dans notre configuration. Chaque grain est fragmenté en dizaines de petits segments, rendant le comptage et l'analyse morphologique impossibles.
+
+0. **Fiabilité des données extraites** : Le fichier **features.csv** généré par Quickshift contient des données bruitées où une seule entité physique (un grain) est représentée par de multiples lignes de caractéristiques colorimétriques. Les fichiers issus des méthodes Basique et Watershed sont beaucoup plus représentatifs de la réalité physique de l'échantillon, permettant une analyse statistique cohérente de la composition minéralogique.
+
 ## Conclusion
-
-
-
-
+Ce projet nous a permis d'explorer différentes approches de segmentation pour l'analyse d'échantillons géologiques. 
+La méthode par **opérations morphologiques et seuillage d'Otsu** constitue une base solide et rapide, mais manque de finesse pour séparer les amas de grains. 
+La **segmentation par Watershed**, bien que plus complexe à paramétrer, s'impose comme la solution la plus robuste pour notre objectif de comptage et de caractérisation individuelle, malgré une légère tendance à la sous-segmentation.
+Enfin, l'expérience avec **Quickshift** souligne l'importance du choix de l'algorithme en fonction de la nature des images : bien que puissant pour des images naturelles complexes, il est inadapté à la segmentation d'objets distincts et homogènes comme des grains minéraux, tant pour des raisons de précision que de coût computationnel.
+Pour la suite, une approche hybride combinant la précision des contours du Watershed avec un classifieur de machine learning sur les caractéristiques extraites (RGB/LAB) permettrait une identification précise de la nature de chaque minéral.
