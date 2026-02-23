@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 import glob 
 import os
+import argparse
 from pathlib import Path
 from preprocessing import traitement
 from segmentation_basic import segmentation_basic
@@ -11,7 +12,11 @@ from segmentation_basic import segmentation_basic
 from features import process_segmentation_results
 
 def main():
-    path = "img/"
+    parser = argparse.ArgumentParser(description="Traitement et segmentation d'images.")
+    parser.add_argument("input_dir", nargs="?", default="img/", help="Chemin vers le dossier contenant les photos (défaut: img/)")
+    args = parser.parse_args()
+
+    path = args.input_dir
 
     preprocessing_path = "results/preprocessing/"
     os.makedirs(preprocessing_path, exist_ok=True)
