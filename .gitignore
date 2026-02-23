@@ -69,3 +69,6 @@ __marimo__/
 
 *.pdf
 *.png
+results/
+img/
+__pycache__/
