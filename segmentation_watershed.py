@@ -4,7 +4,8 @@ import os
 from preprocessing import load_and_resize, preprocess
 from skimage.feature import peak_local_max
 from scipy import ndimage
-from preprocessing import load_and_resize, traitement
+from preprocessing import load_and_resize
+from scipy.spatial.distance import cdist
 
 
 
@@ -42,21 +43,21 @@ def watershed_segmentation(path: str, save: bool = False, visualise: bool = Fals
         dist_transform = cv2.distanceTransform(opening, cv2.DIST_L2, 5)
         dist_norm = cv2.normalize(dist_transform, None, 0, 1.0, cv2.NORM_MINMAX)
 
-        coarse_mask = (dist_transform > 0.22 * dist_transform.max()).astype(np.uint8)
+        coarse_mask = (dist_transform > 0.35 * dist_transform.max()).astype(np.uint8)
         n_coarse, coarse_labels = cv2.connectedComponents(coarse_mask)
         sizes = [np.sum(coarse_labels == l) for l in range(1, n_coarse)]
 
         if sizes:
             median_size = np.median(sizes)
             estimated_radius = int(np.sqrt(median_size / np.pi))
-            min_dist = max(10, int(estimated_radius * 0.60))  # Avoide double peaks
+            min_dist = max(10, int(estimated_radius * 1.6))  # Avoide double peaks
         else:
             min_dist = 15
 
         local_max = peak_local_max(
             dist_transform,
             min_distance=min_dist,
-            threshold_rel=0.35,   
+            threshold_rel=0.3,   
             labels=opening
         )
 
@@ -71,7 +72,7 @@ def watershed_segmentation(path: str, save: bool = False, visualise: bool = Fals
         # Extraction 
         objects = []
         for label in np.unique(markers):
-            if label <= 1: 
+            if label <= 0: 
                 continue
 
             mask = np.zeros(gray.shape, dtype="uint8")
@@ -79,11 +80,13 @@ def watershed_segmentation(path: str, save: bool = False, visualise: bool = Fals
 
             contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-            for cnt in contours:
-                area = cv2.contourArea(cnt)
-                if 200 < area < 60000:
-                    objects.append(cnt)
-
+            if not contours:
+                continue
+            cnt = max(contours, key=cv2.contourArea)
+            area = cv2.contourArea(cnt)
+            if 200 < area < 60000:
+                objects.append(cnt)
+        
         objects_in_images[name] = objects
 
         # Print
@@ -102,6 +105,23 @@ def watershed_segmentation(path: str, save: bool = False, visualise: bool = Fals
             cv2.destroyAllWindows()
 
     return objects_in_images
+
+
+
+def filter_overlapping_contours(contours, min_dist_px):
+    centroids = [np.mean(c.reshape(-1, 2), axis=0) for c in contours]
+    kept = []
+    used = set()
+    for i, c in enumerate(contours):
+        if i in used:
+            continue
+        kept.append(c)
+        for j, c2 in enumerate(contours):
+            if i != j and j not in used:
+                d = np.linalg.norm(np.array(centroids[i]) - np.array(centroids[j]))
+                if d < min_dist_px:
+                    used.add(j)
+    return kept
 
 
 if __name__ == "__main__":
