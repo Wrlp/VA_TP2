@@ -8,10 +8,7 @@ from preprocessing import load_and_resize, traitement
 
 
 
-def watershed_segmentation(path: str,
-                           save: bool = False,
-                           visualise: bool = False,
-                           out: str = "results/seg_watershed/") -> dict[str, list[np.ndarray]]:
+def watershed_segmentation(path: str, save: bool = False, visualise: bool = False, out: str = "results/seg_watershed/") -> dict[str, list[np.ndarray]]:
     """
     Segmentation des grains par Watershed.
     Retourne :
@@ -22,46 +19,28 @@ def watershed_segmentation(path: str,
     images = load_and_resize(path)
 
     for name, img in images.items():
-        # 1️⃣ Prétraitement
+        # Treatement
         enhanced, _ = preprocess(img)
         gray = cv2.cvtColor(enhanced, cv2.COLOR_BGR2GRAY)
         
-        # Flou pour lisser le bruit, mais on garde les bords
+        # blurred to reduce noise
         blurred = cv2.GaussianBlur(gray, (5, 5), 0)
 
-        # 2️⃣ Seuillage Automatique (Otsu)
-        # Utile car CLAHE (en amont) uniformise les contrastes
+        # Global Ostu
         otsu_val, binary_otsu = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-
         low_thresh = max(20, int(otsu_val * 0.6))
         _, binary_low = cv2.threshold(blurred, low_thresh, 255, cv2.THRESH_BINARY)
-        # Union des deux binaires
         binary = cv2.bitwise_or(binary_otsu, binary_low)
 
 
-        # 3️⃣ Morphologie : Nettoyage interne
-        # On remplit les reflets à l'intérieur des grains
+        # Mophological closing
         kernel_small = np.ones((3, 3), np.uint8)
-        kernel_med   = np.ones((5, 5), np.uint8)
-
-
-
-
         binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel_small, iterations=3)
-        # On élimine les petits points isolés (bruit)
         opening = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel_small, iterations=1)
 
-        # 4️⃣ Distance Transform & Marqueurs
-        
-        gradient = cv2.morphologyEx(gray, cv2.MORPH_GRADIENT, kernel_small)
-        gradient_smooth = cv2.GaussianBlur(gradient, (5, 5), 0)
-        gradient_inv = 255 - gradient_smooth
-
+        # Markers
         dist_transform = cv2.distanceTransform(opening, cv2.DIST_L2, 5)
-        
         dist_norm = cv2.normalize(dist_transform, None, 0, 1.0, cv2.NORM_MINMAX)
-
-        # Remplace les étapes 5 et 6 par ça, simple et sans double passe
 
         coarse_mask = (dist_transform > 0.22 * dist_transform.max()).astype(np.uint8)
         n_coarse, coarse_labels = cv2.connectedComponents(coarse_mask)
@@ -70,30 +49,29 @@ def watershed_segmentation(path: str,
         if sizes:
             median_size = np.median(sizes)
             estimated_radius = int(np.sqrt(median_size / np.pi))
-            min_dist = max(10, int(estimated_radius * 0.60))  # monte fort pour tuer les doublons
+            min_dist = max(10, int(estimated_radius * 0.60))  # Avoide double peaks
         else:
             min_dist = 15
 
         local_max = peak_local_max(
             dist_transform,
             min_distance=min_dist,
-            threshold_rel=0.35,   # monte fort : un seul pic par grain
+            threshold_rel=0.35,   
             labels=opening
         )
 
         peak_mask = np.zeros(dist_transform.shape, dtype=bool)
         peak_mask[tuple(local_max.T)] = True
         markers, _ = ndimage.label(peak_mask)
-
         markers[opening == 0] =-1
         
         # Watershed
         markers = cv2.watershed(img, markers.astype(np.int32))
         
-        # 5️⃣ Extraction des objets
+        # Extraction 
         objects = []
         for label in np.unique(markers):
-            if label <= 1: # fond et bordures
+            if label <= 1: 
                 continue
 
             mask = np.zeros(gray.shape, dtype="uint8")
@@ -108,19 +86,13 @@ def watershed_segmentation(path: str,
 
         objects_in_images[name] = objects
 
-        # =============================
-        # 6️⃣ Affichage / sauvegarde
-        # =============================
+        # Print
         result = img.copy()
-
         cv2.drawContours(result, objects, -1, (0, 0, 255), 1)
-
         print(f"{name} → {len(objects)} grains détectés  (min_distance={min_dist})")
-
         if save:
             os.makedirs(out, exist_ok=True)
             cv2.imwrite(os.path.join(out, name), result)
-
         if visualise:
             dist_display = (dist_norm * 255).astype(np.uint8)
             dist_display = cv2.applyColorMap(dist_display, cv2.COLORMAP_JET)

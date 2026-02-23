@@ -11,7 +11,7 @@ Ce projet a été réalisé en groupe de cinq étudoants avec une répartition d
 - Clément : Segmentation par opérations morphologiques et seuillage Otsu
 - Flavien :
 - Ewan :
-- Anna-Eve :
+- Anna-Eve : Segmentation par watershed
 
 ## Description des données
 <p align="justify">
@@ -44,8 +44,15 @@ De plus, le choix des paramètres (taille du noyau, nombre d'itérations, seuil 
 Globalement, la méthode ne permet pas de distinguer les grains fusionnés et peut sur-segmenter les grains présentant des variations d'intensité interne, ce qui limite sa précision pour l'analyse quantitative des échantillons.
 
 ### Segmenteation Watershed
+Pour cette méthode, l'objectif est de détecter et isoler les grains en exploitant la topographie de l'image, en simulant une inondation depuis des marqueurs placés au cœur de chaque grain. Dans un premier temps, les images prétraitées par CLAHE sont converties en niveaux de gris dans la fonction watershed_segmentation. Ensuite, un double seuillage est appliqué : un seuillage automatique par la méthode d'Otsu ainsi qu'un seuillage à 60% de la valeur d'Otsu, dont l'union permet de mieux capturer les grains sombres que le seuillage seul ne détecterait pas.
+
+Pour améliorer la qualité du masque binaire, des opérations morphologiques sont appliquées avec un noyau structurant de taille 3x3. Une fermeture avec 3 itérations comble les reflets et trous internes aux grains, suivie d'une ouverture avec 1 itération pour éliminer le bruit résiduel. La distance transform est ensuite calculée sur ce masque, permettant d'estimer la taille médiane des grains et d'en dériver automatiquement le paramètre min_distance utilisé pour la détection des maxima locaux via peak_local_max. Ces maxima constituent les marqueurs du Watershed, qui sont ensuite propagés par cv2.watershed pour délimiter chaque grain. La détection des contours est réalisée avec findContours en mode RETR_EXTERNAL, et seuls les objets ayant une surface comprise entre 200 et 60 000 pixels sont conservés pour éliminer le bruit et les amas trop importants.
+
+Bien que cette méthode soit plus sophistiquée que le simple seuillage morphologique, elle présente des limitations importantes dans le cadre de ce projet. Le CLAHE appliqué en prétraitement améliore le contraste global mais introduit des variations d'intensité à l'intérieur des grains colorés ou à reflets, ce qui génère de faux creux dans la distance transform et produit des marqueurs parasites responsables de sur-segmentation. À l'inverse, pour les grains sombres collés, le prétraitement ne fait pas apparaître de frontière visible entre deux grains de teinte similaire, privant ainsi le Watershed de l'information nécessaire pour les séparer et provoquant de la sous-segmentation. Le paramètre min_distance, bien que calculé dynamiquement, reste un compromis global appliqué uniformément à toute l'image, alors que les grains présentent des tailles très variables d'une image à l'autre. Globalement, la méthode est efficace sur les grains bien contrastés et isolés, mais échoue précisément sur les cas les plus fréquents et les plus difficiles de ces images, ce qui limite sa robustesse pour une analyse quantitative fiable.
+
 ## Analyse critique
 ## Conclusion
+
 
 
 
